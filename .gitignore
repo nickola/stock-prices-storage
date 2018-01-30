@@ -1,0 +1,14 @@
+# Directories starting with "_"
+/_*/
+!/_example/
+
+# Virtual environment
+/.venv
+
+# macOS
+.ds_store
+
+# Other
+*.pyc
+*.pyo
+*.log

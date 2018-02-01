@@ -24,6 +24,7 @@ merge_parser.set_defaults(action='merge')
 # Adjust
 adjust_parser = action_parsers.add_parser('adjust', help="Adjust prices")
 adjust_parser.set_defaults(action='adjust')
+adjust_parser.add_argument('--skip-errors', action='store_true', help="Skip errors")
 
 # Get
 get_parser = action_parsers.add_parser('get', help="Get adjusted prices")

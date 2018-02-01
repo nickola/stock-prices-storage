@@ -1,3 +1,4 @@
+from decimal import Decimal
 from utilities import chunked
 from settings import CLICKHOUSE_PRICES_TABLE, CLICKHOUSE_DIVIDENDS_SPLITS_TABLE, CLICKHOUSE_PRICES_ADJUSTED_TABLE
 from .base import BaseAction
@@ -6,22 +7,17 @@ from .base import BaseAction
 class Action(BaseAction):
     chunk_size = 100000
 
-    @staticmethod
-    def adjusted(value, precede_value, precede_adjusted, precede_dividend, precede_split):
-        return precede_adjusted + precede_adjusted * ((value * (1 / precede_split) - precede_value - precede_dividend)
-                                                      / precede_value)
-
     def serialize(self, data, symbol, date):
         return {
             'symbol': symbol,
             'date': date,
-            'adjusted_open': self.multiplied(data['open']),
-            'adjusted_high': self.multiplied(data['high']),
-            'adjusted_low': self.multiplied(data['low']),
-            'adjusted_close': self.multiplied(data['close'])
+            'adjusted_open': int(data['open']),
+            'adjusted_high': int(data['high']),
+            'adjusted_low': int(data['low']),
+            'adjusted_close': int(data['close'])
         }
 
-    def start(self):
+    def start(self, skip_errors=False):
         self.remove_table(CLICKHOUSE_PRICES_ADJUSTED_TABLE)
         self.create_table(CLICKHOUSE_PRICES_ADJUSTED_TABLE)
 
@@ -39,6 +35,7 @@ class Action(BaseAction):
 
         price_fields = ('open', 'high', 'low', 'close')
         precede, precede_date = None, None
+        current_coefficient = default_coefficient = Decimal(1)
         current_symbol = None
         total = 0
 
@@ -50,33 +47,38 @@ class Action(BaseAction):
                 total += 1
 
                 if symbol != current_symbol:
-                    current_symbol = symbol
+                    current_symbol, current_coefficient = symbol, default_coefficient
                     precede, precede_date = None, None
 
                 current = {
-                    'open': self.demultiplied(open),
-                    'high': self.demultiplied(high),
-                    'low': self.demultiplied(low),
-                    'close': self.demultiplied(close),
-                    'dividend': self.demultiplied(dividend or self.empty_dividend),
-                    'split_ratio': self.demultiplied(split_ratio or self.empty_split_ratio)
+                    'open': Decimal(open),
+                    'high': Decimal(high),
+                    'low': Decimal(low),
+                    'close': Decimal(close),
+                    'dividend': self.empty_dividend if dividend == 0 else dividend,
+                    'split_ratio': self.empty_split_ratio if split_ratio == 0 else split_ratio
                 }
 
                 if precede:
-                    current['adjusted'] = {
-                        price: self.adjusted(value=current[price],
-                                             precede_value=precede[price],
-                                             precede_adjusted=precede['adjusted'][price],
-                                             precede_dividend=precede['dividend'],
-                                             precede_split=precede['split_ratio'])
-                        for price in price_fields
-                    }
+                    if precede['split_ratio'] != self.empty_split_ratio:
+                        current_coefficient *= 1 / self.demultiplied(precede['split_ratio'])
 
-                    for value in current['adjusted'].values():
-                        if value <= 0:
-                            self.log("Adjusted value is <= 0, check data for symbol: {symbol}".format(symbol=symbol),
-                                     data={precede_date: precede, date: current}, error=True, pretty=True)
-                            return
+                    if precede['dividend'] != self.empty_dividend:
+                        dividend_coefficient = (1 - Decimal(precede['dividend']) / current['close'])
+
+                        if dividend_coefficient <= 0:
+                            template = "Dividend coefficient is less than or equal to zero, " \
+                                       "please check data for symbol: {symbol} [{date}, {precede_date}]"
+                            self.log(template.format(symbol=symbol, date=date, precede_date=precede_date), error=True)
+
+                            if skip_errors:
+                                dividend_coefficient = default_coefficient
+                            else:
+                                return
+
+                        current_coefficient *= dividend_coefficient
+
+                    current['adjusted'] = {price: current[price] * current_coefficient for price in price_fields}
 
                 else:
                     current['adjusted'] = {price: current[price] for price in price_fields}

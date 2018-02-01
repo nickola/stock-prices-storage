@@ -5,7 +5,6 @@ PYTHON_REQUIREMENTS = "requirements.txt"
 DOCKER = "docker"
 MANAGE = "./manage.sh"
 EXAMPLE_AAPL_MSFT_CSV = "_example/WIKI-AAPL-MSFT.csv"
-EXAMPLE_ALL_CSV = "_example/WIKI-ALL_2018-01-27.csv"
 
 # Python virtual environment
 venv-setup:
@@ -50,9 +49,6 @@ adjust:
 # Examples
 import-example:
 	@$(MANAGE) import "$(EXAMPLE_AAPL_MSFT_CSV)"
-
-import-example-all:
-	@$(MANAGE) import "$(EXAMPLE_ALL_CSV)" --skip-errors
 
 get-example:
 	@cat "$(EXAMPLE_AAPL_MSFT_CSV)" | head -1

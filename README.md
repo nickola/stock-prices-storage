@@ -2,7 +2,8 @@
 
 Stock Prices Storage is a simple storage
 ([Clickhouse](https://clickhouse.yandex) is used as a database) for stock prices with adjusted prices calculaton
-(see [Josh Schertz article](https://joshschertz.com/2016/08/27/Vectorizing-Adjusted-Close-with-Python/) for more details).
+(see Center for Research in Security Prices (CRSP) standards and [this article](https://help.yahoo.com/kb/SLN28256.html)
+for more details).
 
 Storage is managed with `make.sh` (wrapper around `manage.py`), run `make.sh` to see a list of all supported actions.
 Also, most common actions can be performed with `make` command (see `Makefile` for more details).
@@ -72,9 +73,9 @@ FOUND:
   - high: 28.87
   - low: 28.75
   - close: 28.75
-  - adjusted_open: 0.423
-  - adjusted_high: 0.4257
-  - adjusted_low: 0.4219
+  - adjusted_open: 0.4228
+  - adjusted_high: 0.4245
+  - adjusted_low: 0.4228
   - adjusted_close: 0.4228
 
 FOUND:
@@ -85,7 +86,7 @@ FOUND:
   - low: 25.5
   - close: 28
   - adjusted_open: 0.0588
-  - adjusted_high: 0.0676
-  - adjusted_low: 0.0586
+  - adjusted_high: 0.0674
+  - adjusted_low: 0.0588
   - adjusted_close: 0.0645
 ```

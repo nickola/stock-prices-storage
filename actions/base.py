@@ -71,7 +71,8 @@ class BaseAction(object):
                 text += "\n-- [DATA] --\n{data}\n-- [/DATA] --".format(data=pformat(data))
 
             else:
-                text += ' [{data}]'.format(data=', '.join(map(lambda pair: '{}: {!r}'.format(*pair), sorted(data.items()))))
+                data_text = ', '.join(map(lambda pair: '{}: {!r}'.format(*pair), sorted(data.items())))
+                text += ' [{data}]'.format(data=data_text)
 
         print(text)
 

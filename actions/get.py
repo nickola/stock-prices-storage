@@ -1,4 +1,4 @@
-from settings import CLICKHOUSE_PRICES_ALL_VIEW
+from settings import CLICKHOUSE_MINUTES_VIEW, CLICKHOUSE_DAYS_VIEW
 from .base import BaseAction
 
 
@@ -17,13 +17,25 @@ class Action(BaseAction):
             'adjusted_close': self.demultiplied(data['adjusted_close'])
         }
 
-    def start(self, symbol, date):
+    def start(self, mode, symbol, date):
+        view = None
+
+        if mode == 'minute':
+            view = CLICKHOUSE_MINUTES_VIEW
+
+        elif mode == 'day':
+            view = CLICKHOUSE_DAYS_VIEW
+
+        if not view:
+            self.log("Unknown mode: {mode}".format(mode=mode), error=True)
+            return
+
         fields = ('symbol', 'date', 'open', 'high', 'low', 'close',
                   'adjusted_open', 'adjusted_high', 'adjusted_low', 'adjusted_close')
 
         rows = self.clickhouse.execute('''
             SELECT {fields} FROM {view} WHERE symbol = '{symbol}' AND date = '{date}'
-        '''.format(fields=', '.join(fields), view=CLICKHOUSE_PRICES_ALL_VIEW, symbol=symbol, date=date))
+        '''.format(fields=', '.join(fields), view=view, symbol=symbol, date=date))
 
         if rows:
             for row in rows:

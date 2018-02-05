@@ -1,7 +1,7 @@
 # Stock Prices Storage
 
 Stock Prices Storage is a simple storage
-([Clickhouse](https://clickhouse.yandex) is used as a database) for stock prices with adjusted prices calculaton
+([Clickhouse](https://clickhouse.yandex) is used as a database) for stock prices with adjusted prices calculation
 (see Center for Research in Security Prices (CRSP) standards and [this article](https://help.yahoo.com/kb/SLN28256.html)
 for more details).
 
@@ -38,9 +38,9 @@ make reset
 ```
 
 Importing example [Quandl WIKI Prices](https://www.quandl.com/databases/WIKIP) for Apple (AAPL) and Microsoft (MSFT)
-from `_example/WIKI-AAPL-MSFT.csv`:
+from `_example/quandl-WIKI-AAPL-MSFT.csv`:
 ```
-make import-example
+make example-quandl-import
 ```
 
 Merging imported data into internal tables, duplicates control:
@@ -55,13 +55,14 @@ make adjust
 
 Getting calculated adjusted prices and comparing them with original Quandl WIKI Prices:
 ```
-make get-example
+make example-quandl-get
 ```
 
-Output of final `make get-example` is shown below.
+Output of final `make example-quandl-get` is shown below.
 As you can see, calculated adjusted prices are very similar to the adjusted prices from Quandl.
 
 ```
+QUANDL DATA:
 ticker,date,open,high,low,close,volume,ex-dividend,split_ratio,adj_open,adj_high,adj_low,adj_close,adj_volume
 AAPL,1980-12-12,28.75,28.87,28.75,28.75,2093900.0,0.0,1.0,0.42270591588018,0.42447025361603,0.42270591588018,0.42270591588018,117258400.0
 MSFT,1986-03-13,25.5,29.25,25.5,28.0,3582600.0,0.0,1.0,0.058941410012893,0.067609264426554,0.058941410012893,0.064719979622,1031788800.0

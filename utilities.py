@@ -12,8 +12,8 @@ def demultiplied(value, multiplier):
     return Decimal(value) / multiplier
 
 
-def parse_date(value, format='%Y-%m-%d'):
-    return datetime.strptime(value, format).date()
+def parse_datetime(value, format='%Y-%m-%d %H:%M:%S'):
+    return datetime.strptime(value, format)
 
 
 def import_symbol(module, symbol):

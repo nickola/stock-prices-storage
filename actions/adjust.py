@@ -1,16 +1,17 @@
 from decimal import Decimal
 from utilities import chunked
-from settings import CLICKHOUSE_PRICES_TABLE, CLICKHOUSE_DIVIDENDS_SPLITS_TABLE, CLICKHOUSE_PRICES_ADJUSTED_TABLE
+from settings import CLICKHOUSE_ADJUSTMENTS_TABLE, CLICKHOUSE_DAYS_TABLE, CLICKHOUSE_DAYS_ADJUSTED_TABLE
 from .base import BaseAction
 
 
 class Action(BaseAction):
     chunk_size = 100000
 
-    def serialize(self, data, symbol, date):
+    def serialize(self, symbol, date, coefficient, data):
         return {
             'symbol': symbol,
             'date': date,
+            'adjustment_coefficient': self.multiplied(coefficient),
             'adjusted_open': int(data['open']),
             'adjusted_high': int(data['high']),
             'adjusted_low': int(data['low']),
@@ -18,19 +19,20 @@ class Action(BaseAction):
         }
 
     def start(self, skip_errors=False):
-        self.remove_table(CLICKHOUSE_PRICES_ADJUSTED_TABLE)
-        self.create_table(CLICKHOUSE_PRICES_ADJUSTED_TABLE)
+        self.remove_table(CLICKHOUSE_DAYS_ADJUSTED_TABLE)
+        self.create_table(CLICKHOUSE_DAYS_ADJUSTED_TABLE)
 
         self.log("Adjusting prices...")
 
         select_sql = '''
-            SELECT symbol, date, open, high, low, close, dividend, split_ratio FROM {prices_table}
-            ANY LEFT JOIN {dividends_splits_table} USING symbol, date
-            ORDER BY {prices_table}.symbol, {prices_table}.date DESC
-        '''.format(prices_table=CLICKHOUSE_PRICES_TABLE, dividends_splits_table=CLICKHOUSE_DIVIDENDS_SPLITS_TABLE)
+            SELECT symbol, date, open, high, low, close, dividend, split_ratio FROM {days_table}
+            ANY LEFT JOIN {adjustments_table} USING symbol, date
+            ORDER BY {days_table}.symbol, {days_table}.date DESC
+        '''.format(days_table=CLICKHOUSE_DAYS_TABLE,
+                   adjustments_table=CLICKHOUSE_ADJUSTMENTS_TABLE)
 
-        insert_fields = ', '.join(self.get_table_fields(CLICKHOUSE_PRICES_ADJUSTED_TABLE))
-        insert_sql = 'INSERT INTO {table} ({fields}) VALUES'.format(table=CLICKHOUSE_PRICES_ADJUSTED_TABLE,
+        insert_fields = ', '.join(self.get_table_fields(CLICKHOUSE_DAYS_ADJUSTED_TABLE))
+        insert_sql = 'INSERT INTO {table} ({fields}) VALUES'.format(table=CLICKHOUSE_DAYS_ADJUSTED_TABLE,
                                                                     fields=insert_fields)
 
         price_fields = ('open', 'high', 'low', 'close')
@@ -83,7 +85,9 @@ class Action(BaseAction):
                 else:
                     current['adjusted'] = {price: current[price] for price in price_fields}
 
-                items.append(self.serialize(current['adjusted'], symbol=symbol, date=date))
+                items.append(self.serialize(symbol=symbol, date=date,
+                                            coefficient=current_coefficient,
+                                            data=current['adjusted']))
 
                 precede, precede_date = current, date
 

@@ -1,32 +1,71 @@
-from settings import CLICKHOUSE_IMPORT_TABLE, CLICKHOUSE_PRICES_TABLE, CLICKHOUSE_DIVIDENDS_SPLITS_TABLE
+from settings import (CLICKHOUSE_MINUTES_IMPORT_TABLE, CLICKHOUSE_MINUTES_TABLE,
+                      CLICKHOUSE_DAYS_IMPORT_TABLE, CLICKHOUSE_DAYS_TABLE,
+                      CLICKHOUSE_ADJUSTMENTS_IMPORT_TABLE, CLICKHOUSE_ADJUSTMENTS_TABLE)
 from .base import BaseAction
 
 
 class Action(BaseAction):
     def start(self):
-        self.log("Merging prices...")
+        self.log("Merging minutes prices...")
 
-        prices_fields = ', '.join(self.get_table_fields(CLICKHOUSE_PRICES_TABLE))
-
-        self.clickhouse.execute('''
-            INSERT INTO {prices_table} ({prices_fields})
-            SELECT DISTINCT {prices_fields} FROM {import_table}
-            WHERE (symbol, date) NOT IN (SELECT (symbol, date) FROM {prices_table})
-        '''.format(import_table=CLICKHOUSE_IMPORT_TABLE,
-                   prices_table=CLICKHOUSE_PRICES_TABLE,
-                   prices_fields=prices_fields))
-
-        self.log("Merging dividends and splits...")
-
-        dividends_splits_fields = ', '.join(self.get_table_fields(CLICKHOUSE_DIVIDENDS_SPLITS_TABLE))
+        fields = self.get_table_fields(CLICKHOUSE_MINUTES_TABLE)
+        insert_fields = ', '.join(fields)
+        select_fields = ', '.join(map(lambda field: 'toDate(date) AS day' if field == 'day' else field, fields))
 
         self.clickhouse.execute('''
-            INSERT INTO {dividends_splits_table} ({dividends_splits_fields})
-            SELECT DISTINCT {dividends_splits_fields} FROM {import_table}
+            INSERT INTO {insert_table} ({insert_fields})
+            SELECT DISTINCT {select_fields} FROM {select_table}
+            WHERE (symbol, date) NOT IN (SELECT (symbol, date) FROM {insert_table})
+        '''.format(insert_table=CLICKHOUSE_MINUTES_TABLE, insert_fields=insert_fields,
+                   select_table=CLICKHOUSE_MINUTES_IMPORT_TABLE, select_fields=select_fields))
+
+        self.log("Merging days prices...")
+
+        self.clickhouse.execute('''
+            INSERT INTO {insert_table} ({fields})
+            SELECT {fields} FROM (SELECT DISTINCT symbol,
+                                                  day as date,
+                                                  argMin(open, date) as open,
+                                                  max(high) as high,
+                                                  min(low) as low,
+                                                  argMax(close, date) as close
+                                  FROM {select_table}
+                                  GROUP BY day, symbol)
+            WHERE (symbol, date) NOT IN (SELECT (symbol, date) FROM {insert_table})
+        '''.format(insert_table=CLICKHOUSE_DAYS_TABLE,
+                   select_table=CLICKHOUSE_MINUTES_TABLE,
+                   fields=', '.join(self.get_table_fields(CLICKHOUSE_DAYS_TABLE))))
+
+        self.clickhouse.execute('''
+            INSERT INTO {insert_table} ({fields})
+            SELECT DISTINCT {fields} FROM {select_table}
+            WHERE (symbol, date) NOT IN (SELECT (symbol, date) FROM {insert_table})
+        '''.format(insert_table=CLICKHOUSE_DAYS_TABLE,
+                   select_table=CLICKHOUSE_DAYS_IMPORT_TABLE,
+                   fields=', '.join(self.get_table_fields(CLICKHOUSE_DAYS_TABLE))))
+
+        self.log("Merging adjustments...")
+
+        fields = ', '.join(self.get_table_fields(CLICKHOUSE_ADJUSTMENTS_TABLE))
+
+        self.clickhouse.execute('''
+            INSERT INTO {insert_table} ({fields})
+            SELECT DISTINCT {fields} FROM {select_table}
             WHERE (dividend != {empty_dividend} OR split_ratio != {empty_split_ratio})
-                  AND (symbol, date) NOT IN (SELECT (symbol, date) FROM {dividends_splits_table});
-        '''.format(import_table=CLICKHOUSE_IMPORT_TABLE,
-                   dividends_splits_table=CLICKHOUSE_DIVIDENDS_SPLITS_TABLE,
-                   dividends_splits_fields=dividends_splits_fields,
+                  AND (symbol, date) NOT IN (SELECT (symbol, date) FROM {insert_table});
+        '''.format(insert_table=CLICKHOUSE_ADJUSTMENTS_TABLE,
+                   select_table=CLICKHOUSE_DAYS_IMPORT_TABLE,
+                   fields=fields,
+                   empty_dividend=self.empty_dividend,
+                   empty_split_ratio=self.empty_split_ratio))
+
+        self.clickhouse.execute('''
+            INSERT INTO {insert_table} ({fields})
+            SELECT DISTINCT {fields} FROM {select_table}
+            WHERE (dividend != {empty_dividend} OR split_ratio != {empty_split_ratio})
+                  AND (symbol, date) NOT IN (SELECT (symbol, date) FROM {insert_table});
+        '''.format(insert_table=CLICKHOUSE_ADJUSTMENTS_TABLE,
+                   select_table=CLICKHOUSE_ADJUSTMENTS_IMPORT_TABLE,
+                   fields=fields,
                    empty_dividend=self.empty_dividend,
                    empty_split_ratio=self.empty_split_ratio))
